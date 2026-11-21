@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+set -C
+db=$(openssl rand -hex 32)
+s3=$(openssl rand -hex 32)
+sed -e "s/^PGPASSWORD=$/PGPASSWORD=$db/" -e "s/^AWS_SECRET_ACCESS_KEY=$/AWS_SECRET_ACCESS_KEY=$s3/" .env.example > .env

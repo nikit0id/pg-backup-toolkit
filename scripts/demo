@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+python3 -m venv .venv
+.venv/bin/pip -q install -r requirements.txt
+export PATH="$PWD/.venv/bin:$PATH"
+set -a
+# shellcheck disable=SC1091
+source .env
+set +a
+docker compose up -d --wait
+PGPORT=$(docker compose port db 5432 | cut -d: -f2)
+S3_ENDPOINT_URL="http://$(docker compose port minio 9000)"
+export PGPORT S3_ENDPOINT_URL
+python - <<'PY'
+import os, time
+import boto3
+import psycopg
+from botocore.exceptions import EndpointConnectionError, ClientError
+s3 = boto3.client("s3", endpoint_url=os.environ["S3_ENDPOINT_URL"])
+for attempt in range(40):
+    try:
+        buckets = {b["Name"] for b in s3.list_buckets()["Buckets"]}
+        break
+    except (EndpointConnectionError, ClientError):
+        if attempt == 39:
+            raise
+        time.sleep(1)
+if os.environ["S3_BUCKET"] not in buckets:
+    s3.create_bucket(Bucket=os.environ["S3_BUCKET"])
+with psycopg.connect("") as db:
+    db.execute("CREATE TABLE IF NOT EXISTS tasks (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, title text NOT NULL, done boolean DEFAULT false NOT NULL)")
+    db.execute("INSERT INTO tasks (title) VALUES (%s), (%s)", ("test backup", "test restore"))
+PY
+# Use the client that matches the demo server's major version.
+temp=$(mktemp -d)
+trap 'rm -rf "$temp"' EXIT
+cat > "$temp/pg_dump" <<'WRAPPER'
+#!/usr/bin/env bash
+exec docker compose exec -T db pg_dump -U "$PGUSER" -d "$PGDATABASE" "$@"
+WRAPPER
+chmod +x "$temp/pg_dump"
+export PATH="$temp:$PATH"
+python toolkit.py backup
+python toolkit.py restore

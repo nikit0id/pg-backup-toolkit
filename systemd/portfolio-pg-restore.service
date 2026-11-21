@@ -1,0 +1,8 @@
+[Unit]
+Description=PostgreSQL restore for portfolio-api
+After=network-online.target docker.service
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/pg-backup-toolkit
+EnvironmentFile=/etc/portfolio/pg-backup.env
+ExecStart=/opt/pg-backup-toolkit/.venv/bin/python /opt/pg-backup-toolkit/toolkit.py restore

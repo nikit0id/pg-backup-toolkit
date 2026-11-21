@@ -16,3 +16,9 @@ jobs:
       - run: |
           pip install -r requirements.txt
           python -m unittest tests_retention
+          shellcheck scripts/*
+      - name: Back up to MinIO and check a real PostgreSQL restore
+        run: |
+          scripts/init-env
+          scripts/demo
+          grep -E '^portfolio_pg_backup_last_success_timestamp_seconds [0-9]+$' metrics/pg_backup.prom

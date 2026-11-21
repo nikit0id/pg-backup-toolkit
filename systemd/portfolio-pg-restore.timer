@@ -1,0 +1,7 @@
+[Unit]
+Description=Schedule PostgreSQL restore
+[Timer]
+OnCalendar=Sun *-*-* 04:00:00
+Persistent=true
+[Install]
+WantedBy=timers.target
